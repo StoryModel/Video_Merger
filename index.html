@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local Video Merger</title>
+  <style>
+    :root { --bg:#f6f8fb; --card:#ffffff; --text:#172033; --muted:#6b7280; --accent:#2867ff; --accent2:#174edb; --border:#d9e1ef; --ok:#0f9f6e; --danger:#d83a52; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg,#eef4ff 0%,var(--bg) 45%); color:var(--text); min-height:100vh; }
+    header { text-align:center; padding:46px 18px 22px; }
+    header h1 { margin:0 0 10px; font-size:clamp(32px,5vw,54px); letter-spacing:-1.6px; }
+    header p { margin:0 auto; max-width:720px; font-size:18px; color:var(--muted); line-height:1.55; }
+    main { max-width:940px; margin:0 auto; padding:22px 18px 50px; }
+    .panel { background:rgba(255,255,255,.9); border:1px solid var(--border); border-radius:28px; box-shadow:0 24px 70px rgba(31,68,135,.12); overflow:hidden; }
+    .dropzone { margin:22px; border:2px dashed #9ab4ff; border-radius:24px; background:#f9fbff; padding:44px 20px; text-align:center; transition:.2s; }
+    .dropzone.dragover { background:#eef4ff; transform:scale(.995); }
+    .icon { width:84px; height:84px; margin:0 auto 18px; border-radius:26px; background:#e8efff; display:grid; place-items:center; color:var(--accent); font-size:40px; }
+    .btn { border:none; background:var(--accent); color:white; padding:15px 24px; border-radius:999px; font-weight:700; cursor:pointer; font-size:16px; box-shadow:0 12px 24px rgba(40,103,255,.22); transition:.2s; display:inline-flex; gap:10px; align-items:center; justify-content:center; text-decoration:none; }
+    .btn:hover { background:var(--accent2); transform:translateY(-1px); }
+    .btn.secondary { background:#eef3ff; color:var(--accent); box-shadow:none; }
+    .btn.danger { background:#fff0f2; color:var(--danger); box-shadow:none; }
+    input[type=file] { display:none; }
+    .hint { margin-top:14px; color:var(--muted); font-size:14px; }
+    .toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; border-top:1px solid var(--border); padding:18px 22px; background:#fff; }
+    .toolbar-left, .toolbar-right { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .count { color:var(--muted); font-weight:600; }
+    .list { padding:0 22px 22px; display:grid; gap:12px; }
+    .item { display:grid; grid-template-columns:86px 1fr auto; gap:14px; align-items:center; border:1px solid var(--border); border-radius:18px; padding:10px; background:#fff; }
+    video { width:86px; height:58px; object-fit:cover; border-radius:12px; background:#111827; }
+    .meta strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:560px; }
+    .meta span { color:var(--muted); font-size:13px; }
+    .actions { display:flex; gap:6px; }
+    .mini { border:1px solid var(--border); background:#fff; padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:700; color:#374151; }
+    .mini:hover { background:#f6f8fb; }
+    .status { padding:0 22px 22px; min-height:34px; font-weight:700; }
+    .progress-wrap { height:10px; background:#e7ecf6; border-radius:999px; overflow:hidden; margin:0 22px 22px; display:none; }
+    .progress { width:0%; height:100%; background:var(--accent); animation:load 1.3s infinite ease-in-out; }
+    @keyframes load { 0%{width:8%} 50%{width:78%} 100%{width:100%} }
+    .download-card { margin:0 22px 22px; display:none; padding:22px; border-radius:22px; background:#eefaf5; border:1px solid #bdebd8; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .download-card strong { color:var(--ok); font-size:18px; }
+    footer { text-align:center; color:var(--muted); font-size:13px; margin-top:24px; }
+    @media (max-width:700px){ .item{grid-template-columns:74px 1fr}.actions{grid-column:1/-1}.meta strong{max-width:220px}.toolbar{align-items:stretch}.toolbar-left,.toolbar-right{width:100%}.btn{width:100%} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Merge videos locally</h1>
+    <p>Add two or more videos, arrange their order, merge them with FFmpeg, and download one complete MP4 file.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div id="dropzone" class="dropzone">
+        <div class="icon">＋</div>
+        <label for="fileInput" class="btn">Choose videos</label>
+        <input id="fileInput" type="file" accept="video/*" multiple />
+        <div class="hint">Or drag and drop video files here. Your files stay on your device.</div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <span id="count" class="count">No videos selected</span>
+        </div>
+        <div class="toolbar-right">
+          <button id="clearBtn" class="btn danger" type="button">Clear</button>
+          <button id="mergeBtn" class="btn" type="button">Merge videos</button>
+        </div>
+      </div>
+
+      <div id="fileList" class="list"></div>
+      <div id="progressWrap" class="progress-wrap"><div class="progress"></div></div>
+      <div id="status" class="status"></div>
+      <div id="downloadCard" class="download-card">
+        <strong>Done! Your video is ready.</strong>
+        <a id="downloadLink" class="btn" href="#">Download complete video</a>
+      </div>
+    </section>
+    <footer>Local app running at 127.0.0.1. Requires Python, Flask, and FFmpeg.</footer>
+  </main>
+
+  <script>
+    const input = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const fileList = document.getElementById('fileList');
+    const count = document.getElementById('count');
+    const mergeBtn = document.getElementById('mergeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusEl = document.getElementById('status');
+    const progressWrap = document.getElementById('progressWrap');
+    const downloadCard = document.getElementById('downloadCard');
+    const downloadLink = document.getElementById('downloadLink');
+    let files = [];
+
+    function size(bytes){
+      const units=['B','KB','MB','GB']; let n=bytes, i=0;
+      while(n>=1024 && i<units.length-1){ n/=1024; i++; }
+      return `${n.toFixed(n>=10||i===0?0:1)} ${units[i]}`;
+    }
+
+    function addFiles(newFiles){
+      for(const f of newFiles){
+        if(f.type.startsWith('video/')) files.push(f);
+      }
+      render();
+    }
+
+    function render(){
+      fileList.innerHTML='';
+      count.textContent = files.length ? `${files.length} video${files.length>1?'s':''} selected` : 'No videos selected';
+      files.forEach((file, index)=>{
+        const url = URL.createObjectURL(file);
+        const item = document.createElement('div');
+        item.className='item';
+        item.innerHTML = `
+          <video src="${url}" muted></video>
+          <div class="meta"><strong>${index+1}. ${file.name}</strong><span>${size(file.size)}</span></div>
+          <div class="actions">
+            <button class="mini" data-action="up" data-index="${index}">↑</button>
+            <button class="mini" data-action="down" data-index="${index}">↓</button>
+            <button class="mini" data-action="remove" data-index="${index}">Remove</button>
+          </div>`;
+        fileList.appendChild(item);
+      });
+    }
+
+    fileList.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button'); if(!btn) return;
+      const i = Number(btn.dataset.index);
+      const action = btn.dataset.action;
+      if(action === 'remove') files.splice(i,1);
+      if(action === 'up' && i>0) [files[i-1],files[i]]=[files[i],files[i-1]];
+      if(action === 'down' && i<files.length-1) [files[i+1],files[i]]=[files[i],files[i+1]];
+      render();
+    });
+
+    input.addEventListener('change', ()=> addFiles(input.files));
+    clearBtn.addEventListener('click', ()=>{ files=[]; statusEl.textContent=''; downloadCard.style.display='none'; render(); });
+
+    ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.add('dragover'); }));
+    ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.remove('dragover'); }));
+    dropzone.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+    mergeBtn.addEventListener('click', async ()=>{
+      if(files.length < 2){ statusEl.style.color='var(--danger)'; statusEl.textContent='Please select at least 2 videos.'; return; }
+      const form = new FormData();
+      files.forEach(f => form.append('videos', f));
+      statusEl.style.color='var(--text)';
+      statusEl.textContent='Merging videos... keep this tab open.';
+      downloadCard.style.display='none';
+      progressWrap.style.display='block';
+      mergeBtn.disabled = true;
+      try{
+        const res = await fetch('/merge', { method:'POST', body:form });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || 'Merge failed');
+        statusEl.style.color='var(--ok)';
+        statusEl.textContent=data.message;
+        downloadLink.href=data.download_url;
+        downloadCard.style.display='flex';
+      }catch(err){
+        statusEl.style.color='var(--danger)';
+        statusEl.textContent=err.message;
+      }finally{
+        progressWrap.style.display='none';
+        mergeBtn.disabled = false;
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
